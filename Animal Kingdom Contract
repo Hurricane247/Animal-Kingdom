@@ -1,0 +1,583 @@
+pragma solidity ^0.4.18;
+
+ 
+library SafeMath {
+  function mul(uint256 a, uint256 b) internal pure returns (uint256) {
+    uint256 c = a * b;
+    assert(a == 0 || c / a == b);
+    return c;
+  }
+
+ function div(uint256 a, uint256 b) internal pure returns (uint256) {
+    assert(b > 0); // Solidity automatically throws when dividing by 0
+    uint256 c = a / b;
+    assert(a == b * c + a % b); // There is no case in which this doesn't hold
+    return c;
+  }
+
+  function sub(uint256 a, uint256 b) internal pure returns (uint256) {
+    assert(b <= a);
+    return a - b;
+  }
+
+  function add(uint256 a, uint256 b) internal pure returns (uint256) {
+    uint256 c = a + b;
+    assert(c >= a);
+    return c;
+  }
+}
+
+contract Ownable {
+  address public owner;
+
+
+  event OwnershipTransferred(address indexed previousOwner, address indexed newOwner);
+
+
+  /**
+   * @dev The Ownable constructor sets the original `owner` of the contract to the sender
+   * account.
+   */
+  function Ownable() public {
+    owner = msg.sender;
+  }
+
+
+  /**
+   * @dev Throws if called by any account other than the owner.
+   */
+  modifier onlyOwner() {
+    require(msg.sender == owner);
+    _;
+  }
+
+
+  /**
+   * @dev Allows the current owner to transfer control of the contract to a newOwner.
+   * @param newOwner The address to transfer ownership to.
+   */
+  function transferOwnership(address newOwner) onlyOwner public {
+    require(newOwner != address(0));
+    emit OwnershipTransferred(owner, newOwner);
+    owner = newOwner;
+  }
+
+}
+
+contract ERC20Interface {
+     function totalSupply() public constant returns (uint);
+     function balanceOf(address tokenOwner) public constant returns (uint balance);
+     function allowance(address tokenOwner, address spender) public constant returns (uint remaining);
+     function transfer(address to, uint tokens) public returns (bool success);
+     function approve(address spender, uint tokens) public returns (bool success);
+     function transferFrom(address from, address to, uint tokens) public returns (bool success);
+     event Transfer(address indexed from, address indexed to, uint tokens);
+     event Approval(address indexed tokenOwner, address indexed spender, uint tokens);
+}
+
+contract AnimalFactoryToken is ERC20Interface,Ownable {
+
+   using SafeMath for uint256;
+   
+   string public name;
+   string public symbol;
+   uint256 public decimals;
+
+   uint256 public _totalSupply;
+   mapping(address => uint256) tokenBalances;
+   address ownerWallet;
+   // Owner of account approves the transfer of an amount to another account
+   mapping (address => mapping (address => uint256)) allowed;
+   
+   /**
+   * @dev Contructor that gives msg.sender all of existing tokens.
+   */
+    function AnimalFactoryToken(address wallet) public {
+        owner = msg.sender;
+        ownerWallet = wallet;
+        name  = "Animal Factory Token";
+        symbol = "AFT";
+        decimals = 1;
+        _totalSupply = 2**256 - 1;
+        tokenBalances[wallet] = _totalSupply;   //Since we divided the token into 10^18 parts
+    }
+    
+     // Get the token balance for account `tokenOwner`
+     function balanceOf(address tokenOwner) public constant returns (uint balance) {
+         return tokenBalances[tokenOwner];
+     }
+  
+     // Transfer the balance from owner's account to another account
+     function transfer(address to, uint tokens) public returns (bool success) {
+         require(false);
+         require(tokens <= tokenBalances[msg.sender]);
+         tokenBalances[msg.sender] = tokenBalances[msg.sender].sub(tokens);
+         tokenBalances[to] = tokenBalances[to].add(tokens);
+         emit Transfer(msg.sender, to, tokens);
+         return true;
+     }
+     
+  
+  
+     /**
+   * @dev Transfer tokens from one address to another
+   * @param _from address The address which you want to send tokens from
+   * @param _to address The address which you want to transfer to
+   * @param _value uint256 the amount of tokens to be transferred
+   */
+  function transferFrom(address _from, address _to, uint256 _value) public returns (bool) {
+    require(false);
+    require(_value <= tokenBalances[_from]);
+    require(_value <= allowed[_from][msg.sender]);
+
+    tokenBalances[_from] = tokenBalances[_from].sub(_value);
+    tokenBalances[_to] = tokenBalances[_to].add(_value);
+    allowed[_from][msg.sender] = allowed[_from][msg.sender].sub(_value);
+    emit Transfer(_from, _to, _value);
+    return true;
+  }
+  
+     /**
+   * @dev Approve the passed address to spend the specified amount of tokens on behalf of msg.sender.
+   *
+   * @param _spender The address which will spend the funds.
+   * @param _value The amount of tokens to be spent.
+   */
+  function approve(address _spender, uint256 _value) public returns (bool) {
+    allowed[msg.sender][_spender] = _value;
+    emit Approval(msg.sender, _spender, _value);
+    return true;
+  }
+
+     // ------------------------------------------------------------------------
+     // Total supply
+     // ------------------------------------------------------------------------
+     function totalSupply() public constant returns (uint) {
+         return _totalSupply  - tokenBalances[address(0)];
+     }
+     
+    
+     
+     // ------------------------------------------------------------------------
+     // Returns the amount of tokens approved by the owner that can be
+     // transferred to the spender's account
+     // ------------------------------------------------------------------------
+     function allowance(address tokenOwner, address spender) public constant returns (uint remaining) {
+         return allowed[tokenOwner][spender];
+     }
+     
+     /**
+   * @dev Increase the amount of tokens that an owner allowed to a spender.
+   *
+   * @param _spender The address which will spend the funds.
+   * @param _addedValue The amount of tokens to increase the allowance by.
+   */
+  function increaseApproval(address _spender, uint _addedValue) public returns (bool) {
+    allowed[msg.sender][_spender] = allowed[msg.sender][_spender].add(_addedValue);
+    emit Approval(msg.sender, _spender, allowed[msg.sender][_spender]);
+    return true;
+  }
+
+  /**
+   * @dev Decrease the amount of tokens that an owner allowed to a spender.
+   *
+   * @param _spender The address which will spend the funds.
+   * @param _subtractedValue The amount of tokens to decrease the allowance by.
+   */
+  function decreaseApproval(address _spender, uint _subtractedValue) public returns (bool) {
+    uint oldValue = allowed[msg.sender][_spender];
+    if (_subtractedValue > oldValue) {
+      allowed[msg.sender][_spender] = 0;
+    } else {
+      allowed[msg.sender][_spender] = oldValue.sub(_subtractedValue);
+    }
+    emit Approval(msg.sender, _spender, allowed[msg.sender][_spender]);
+    return true;
+  }
+
+     
+     // ------------------------------------------------------------------------
+     // Don't accept ETH
+     // ------------------------------------------------------------------------
+     function () public payable {
+         revert();
+     }
+ 
+ 
+     // ------------------------------------------------------------------------
+     // Owner can transfer out any accidentally sent ERC20 tokens
+     // ------------------------------------------------------------------------
+     function transferAnyERC20Token(address tokenAddress, uint tokens) public onlyOwner returns (bool success) {
+         return ERC20Interface(tokenAddress).transfer(owner, tokens);
+     }
+     
+     //only to be used by the ICO
+     
+     function mint(address wallet, address buyer, uint256 tokenAmount) public onlyOwner {
+      require(tokenBalances[wallet] >= tokenAmount);               // checks if it has enough to sell
+      tokenBalances[buyer] = tokenBalances[buyer].add(tokenAmount);                  // adds the amount to buyer's balance
+      tokenBalances[wallet] = tokenBalances[wallet].sub(tokenAmount);                        // subtracts amount from seller's balance
+      emit Transfer(wallet, buyer, tokenAmount); 
+      _totalSupply = _totalSupply.sub(tokenAmount);
+    }
+    
+}
+
+contract AnimalFactory {
+    
+    struct AnimalProperties
+    {
+        uint id;
+        address animalOwner;
+        string name;
+        string desc;
+        bool upForSale;
+        uint priceForSale;
+        bool upForMating;
+        uint priceForMating;
+        bool isBornByMating;
+        uint parentId1;
+        uint parentId2;
+    }
+    
+  using SafeMath for uint256;
+ 
+  // The token being sold
+  uint uniqueAnimalId=0;
+  AnimalFactoryToken public token;
+  mapping(address=>uint[])  animalIdsAgainstAddress;
+  mapping(uint=>AnimalProperties)  animalAgainstId;
+  mapping(address=>uint)  totalAnimalsAgainstAddress;
+  uint[] upForMatingList;
+  uint[] upForSaleList;
+  // address where funds are collected
+  address public walletOwner;
+   AnimalProperties  animalObject;
+
+uint public ownerPerThousandShare = 35;
+
+// how many % eths  a owner gets per transaction
+uint public freeAnimalsLimit = 4;
+
+
+// amount of raised money in wei
+uint256 public weiRaised;
+
+// Total no of bunnies created
+uint256 public totalBunniesCreated=0;
+
+uint256 public weiPerAnimal = 1*10**18;
+
+  /**
+   * event for animals purchase logging
+   * @param purchaser who paid for the animals
+   * @param beneficiary who got the animals
+   * @param value weis paid for purchase
+   * @param amount of animals purchased
+   */
+  event AnimalsPurchased(address indexed purchaser, address indexed beneficiary, uint256 value, uint256 amount);
+
+
+  function AnimalFactory(address _walletOwner) public {
+      
+        require(_walletOwner != 0x0);
+        walletOwner=_walletOwner;
+         
+        token = createTokenContract(_walletOwner);
+  }
+
+  // creates the token to be sold.
+  function createTokenContract(address wall) internal returns (AnimalFactoryToken) {
+    return new AnimalFactoryToken(wall);
+  }
+ 
+ function getAnimalById(uint aid) public constant
+ returns (string name, string desc,uint imageId,
+        uint priceForSale ,uint priceForMating, uint parent1Id,uint parent2Id)
+ {
+   return(animalAgainstId[aid].name,animalAgainstId[aid].desc,
+     animalAgainstId[aid].id,
+     animalAgainstId[aid].priceForSale,
+     animalAgainstId[aid].priceForMating,
+     animalAgainstId[aid].parentId1,
+     animalAgainstId[aid].parentId2
+     );
+ }
+
+ function getAllAnimalsByAddress(address ad) public constant
+ returns (uint[] listAnimals)
+ {
+   return animalIdsAgainstAddress[ad];
+ }
+
+
+ function claimFreeAnimalFromAnimalFactory( string animalName, string animalDesc) public
+ {
+    require(msg.sender != 0x0);
+    require(totalAnimalsAgainstAddress[msg.sender]<freeAnimalsLimit);
+    token.mint(walletOwner, msg.sender, 1);
+    uniqueAnimalId++;
+    //Adding Saving Animal Record
+       animalObject = AnimalProperties({
+            id:uniqueAnimalId,
+            animalOwner:msg.sender,
+            name:animalName,
+            desc:animalDesc,
+            upForSale: false,
+            priceForSale:0,
+            upForMating: false,
+            priceForMating:0,
+            isBornByMating: false,
+            parentId1:0,
+            parentId2:0
+          });
+          
+          animalAgainstId[uniqueAnimalId]=animalObject;
+          animalIdsAgainstAddress[msg.sender].push(uniqueAnimalId);
+          totalAnimalsAgainstAddress[msg.sender]++;
+          totalBunniesCreated++;
+ }
+  
+  // low level Animal purchase function
+  function buyAnimalsFromAnimalFactory(uint animalId, string animalName, string animalDesc) public payable {
+    require(validPurchase());
+    require(msg.sender != 0x0);
+    uint256 weiAmount = msg.value;
+    // calculate token amount to be created
+    uint256 tokens = weiAmount.div(weiPerAnimal);
+    // update state
+    weiRaised = weiRaised.add(weiAmount);
+
+    token.mint(walletOwner, msg.sender, tokens); 
+    emit AnimalsPurchased(msg.sender, walletOwner, weiAmount, tokens);
+    
+     uniqueAnimalId++;
+    //Adding Saving Animal Record
+       animalObject = AnimalProperties({
+            id:uniqueAnimalId,
+            animalOwner:msg.sender,
+            name:animalName,
+            desc:animalDesc,
+            upForSale: false,
+            priceForSale:0,
+            upForMating: false,
+            priceForMating:0,
+            isBornByMating:false,
+            parentId1:0,
+            parentId2:0
+          });
+          
+           animalAgainstId[uniqueAnimalId]=animalObject;
+          animalIdsAgainstAddress[msg.sender].push(uniqueAnimalId);
+          totalAnimalsAgainstAddress[msg.sender]++;
+          totalBunniesCreated++;
+    
+  }
+  
+  function buyAnimalsFromUser(uint animalId) public payable {
+    require(animalAgainstId[animalId].upForSale==true);
+    require(msg.sender != 0x0);
+    address prevOwner=animalAgainstId[animalId].animalOwner;
+    uint price=animalAgainstId[animalId].priceForSale;
+    uint OwnerPercentage=animalAgainstId[animalId].priceForSale.mul(ownerPerThousandShare);
+    OwnerPercentage=OwnerPercentage.div(1000);
+    uint priceWithOwnerPercentage = animalAgainstId[animalId].priceForSale.add(OwnerPercentage);
+    require(msg.value>=priceWithOwnerPercentage); 
+    // transfer token only
+    token.mint(prevOwner,msg.sender,1); 
+    // change mapping in animalAgainstId
+    animalAgainstId[animalId].upForSale=false;
+    animalAgainstId[animalId].priceForSale=0;
+    animalAgainstId[animalId].animalOwner=msg.sender;
+    // remove mapping in old animalIdsAgainstAddress
+    for(uint i=0;i<animalIdsAgainstAddress[prevOwner].length;i++)
+     {
+         if(animalIdsAgainstAddress[prevOwner][i]==animalId)
+         {
+             delete animalIdsAgainstAddress[prevOwner][i];
+         }
+     }
+     //remove from for sale list
+      for (uint j=0;j<upForSaleList.length;j++)
+      {
+          if (upForSaleList[j] == animalId)
+            delete upForSaleList[j];
+      }      
+    // add mapping in new animalIdsAgainstAddress
+    animalIdsAgainstAddress[msg.sender].push(animalId);
+    //transfer of money from buyer to beneficiary
+    prevOwner.transfer(price);
+    //transfer of percentage money to ownerWallet
+    walletOwner.transfer(OwnerPercentage);
+    // return extra funds if sent by mistake
+    if(msg.value>priceWithOwnerPercentage)
+    {
+        msg.sender.transfer(msg.value.sub(priceWithOwnerPercentage));
+    }
+  }
+  
+    function mateAnimal(uint parent1Id, uint parent2Id, string animalName,string animalDesc) public payable {
+    require(animalAgainstId[parent2Id].animalOwner!=animalAgainstId[parent1Id].animalOwner);
+    require(msg.sender != 0x0);
+    require(animalAgainstId[parent1Id].upForMating==true);
+    //animalAgainstId[animalId].animalOwner;
+    uint price=animalAgainstId[parent1Id].priceForMating;
+    uint OwnerPercentage=animalAgainstId[parent1Id].priceForMating.mul(ownerPerThousandShare);
+    OwnerPercentage=OwnerPercentage.div(1000);
+    uint priceWithOwnerPercentage = animalAgainstId[parent1Id].priceForMating.add(OwnerPercentage);
+    require(msg.value>=priceWithOwnerPercentage);
+    // transfer token only
+    token.mint(walletOwner,msg.sender,1); 
+    // add animal
+      uniqueAnimalId++;
+    //Adding Saving Animal Record
+       animalObject = AnimalProperties({
+            id:uniqueAnimalId,
+            animalOwner:msg.sender,
+            name:animalName,
+            desc:animalDesc,
+            upForSale: false,
+            priceForSale:0,
+            upForMating: false,
+            priceForMating:0,
+            isBornByMating:true,
+            parentId1: parent1Id,
+            parentId2: parent2Id
+          });
+
+          animalAgainstId[uniqueAnimalId]=animalObject;
+          animalIdsAgainstAddress[msg.sender].push(uniqueAnimalId);
+          totalAnimalsAgainstAddress[msg.sender]++;
+          
+   
+     //remove from for sale list
+     for (uint i=0;i<upForMatingList.length;i++)
+     {
+      if (upForMatingList[i]==parent1Id)
+      delete upForMatingList[i];   
+     }
+      
+    animalAgainstId[parent1Id].upForMating = false;
+    animalAgainstId[parent1Id].priceForMating = 0;
+    //transfer of money from beneficiary to mate owner
+    animalAgainstId[parent1Id].animalOwner.transfer(price);
+    //transfer of percentage money to ownerWallet
+    walletOwner.transfer(OwnerPercentage);
+    // return extra funds if sent by mistake
+    if(msg.value>priceWithOwnerPercentage)
+    {
+        msg.sender.transfer(msg.value.sub(priceWithOwnerPercentage));
+    }
+    totalBunniesCreated++;
+}
+function putSaleRequest(uint animalId, uint salePrice) public
+{
+ require(validAnimalOwnership(msg.sender, animalId));
+ require(animalAgainstId[animalId].upForSale==false);
+ require(animalAgainstId[animalId].upForMating==false);
+ animalAgainstId[animalId].upForSale=true;
+ animalAgainstId[animalId].priceForSale=salePrice;
+ upForSaleList.push(animalId);
+}
+
+function withdrawSaleRequest(uint animalId) public
+{
+ require(validAnimalOwnership(msg.sender, animalId));
+ require(animalAgainstId[animalId].upForSale==true);
+ animalAgainstId[animalId].upForSale=false;
+ animalAgainstId[animalId].priceForSale=0;
+ for (uint i=0;i<upForSaleList.length;i++)
+ {
+     if (upForSaleList[i]==animalId)
+        delete upForSaleList[i];     
+ }
+}
+
+function putMatingRequest(uint animalId, uint matePrice) public
+{
+ require(validAnimalOwnership(msg.sender, animalId));
+ require(animalAgainstId[animalId].upForSale==false);
+ require(animalAgainstId[animalId].upForMating==false);
+ animalAgainstId[animalId].upForMating=true;
+ animalAgainstId[animalId].priceForMating=matePrice;
+ upForMatingList.push(animalId);
+}
+
+function withdrawMatingRequest(uint animalId) public
+{
+ require(validAnimalOwnership(msg.sender, animalId));
+ require(animalAgainstId[animalId].upForMating==true);
+ animalAgainstId[animalId].upForMating=false;
+ animalAgainstId[animalId].priceForMating=0;
+ for (uint i=0;i<upForMatingList.length;i++)
+ {
+     if (upForMatingList[i]==animalId)
+        delete upForMatingList[i];    
+ }
+}
+function validAnimalOwnership(address addr, uint animalId) internal constant returns (bool){
+    uint[] storage idsList=animalIdsAgainstAddress[addr];
+    for (uint i=0;i<idsList.length;i++)
+    {
+        if(idsList[i]==animalId)
+        {
+            return true;
+        }
+    }
+    return false;
+}
+    
+
+  // @return true if the transaction can buy tokens
+  function validPurchase() internal constant returns (bool) {
+  // check validity of purchase
+  if(msg.value.div(weiPerAnimal)<1)
+    return false;
+    
+   uint quotient=msg.value.div(weiPerAnimal); 
+   
+   uint actualVal=quotient.mul(weiPerAnimal);
+   
+   if(msg.value>actualVal)
+        return false;
+    else 
+     return true;
+  }
+
+  
+   function showMyAnimalBalance() public view returns (uint256 tokenBalance) {
+        tokenBalance = token.balanceOf(msg.sender);
+    }
+
+    /**
+     * function to set the new price 
+     * can only be called from owner wallet
+     **/ 
+    function setPriceRate(uint256 newPrice) public returns (bool) {
+        require(msg.sender==walletOwner);
+        weiPerAnimal = newPrice;
+    }
+    
+    function getAllMatingAnimals() public constant returns (uint[]) 
+    {
+        return upForMatingList;
+    }
+    
+      function getAllSaleAnimals() public constant returns (uint[]) 
+    {
+        return upForSaleList;
+    }
+    
+     function changeFreeAnimalsLimit(uint limit) public  
+    {
+        require(msg.sender==walletOwner);
+        freeAnimalsLimit = limit;
+    }
+   
+      function changeOwnerSharePerThousand(uint share) public  
+    {
+        require(msg.sender==walletOwner);
+        ownerPerThousandShare = share;
+    }
+    
+}
